@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math/rand"
 	"sync"
 	"time"
 )
 
-const maxHandleTaskSecond = 30
-const timeoutHandler = 20 * time.Second
+const maxHandleTaskSecond = 10
+const timeoutHandler = 5 * time.Second
 
 type Task interface {
 	Run(ctx context.Context, done chan int)
@@ -22,11 +23,11 @@ type TaskFast struct {
 func (t TaskFast) Run(ctx context.Context, done chan int) {
 	select {
 	case <-time.After(10 * time.Microsecond):
-		log.Printf("fastOperation%s finish\n", t.Name)
+		log.Printf("fastOperation '%s' finish\n", t.Name)
 		done <- 1
 		return
 	case <-ctx.Done():
-		log.Printf("fastOperation%s cancel: %v\n", t.Name, ctx.Err())
+		log.Printf("fastOperation '%s' cancel: %v\n", t.Name, ctx.Err())
 		return
 	}
 }
@@ -44,11 +45,11 @@ func (t TaskSlow) Run(ctx context.Context, done chan int) {
 	timeout := time.Duration(second) * time.Second
 	select {
 	case <-time.After(timeout):
-		log.Printf("slowOperation%s finish\n", t.Name)
+		log.Printf("slowOperation '%s' finish\n", t.Name)
 		done <- 1
 		return
 	case <-ctx.Done():
-		log.Printf("slowOperation%s cancel: %v\n", t.Name, ctx.Err())
+		log.Printf("slowOperation '%s' cancel: %v\n", t.Name, ctx.Err())
 		return
 	}
 }
@@ -70,16 +71,25 @@ func handler(ctx context.Context, task Task) {
 	log.Printf("stop %v\n", task)
 }
 
+func createTasks(count int) []Task {
+	tasks := make([]Task, count)
+	for i := 0; i < count; i++ {
+		rnd := rand.Intn(100)
+		switch {
+		case rnd < 50:
+			tasks[i] = TaskFast{fmt.Sprintf("fast task %d", i)}
+		default:
+			tasks[i] = TaskSlow{fmt.Sprintf("slow task %d", i)}
+		}
+	}
+	return tasks
+}
+
 func main() {
 	log.Println("start worker")
 	ctx := context.Background()
 	var wg sync.WaitGroup
-	tasks := []Task{
-		TaskFast{"task 1"},
-		TaskSlow{"task 2"},
-		TaskFast{"task 3"},
-		TaskSlow{"task 4"},
-	}
+	tasks := createTasks(10)
 	for _, task := range tasks {
 		wg.Add(1)
 		go func(task Task) {
