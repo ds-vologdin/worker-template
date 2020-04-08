@@ -9,21 +9,22 @@ import (
 	"github.com/ds-vologdin/worker-template/task"
 )
 
-const timeoutHandler = 3 * time.Second
-const taskSize = 13
-const batchSize = 5
+const timeoutHandler = 2 * time.Second
+const taskSize = 113
+const batchSize = 15
 
 func handler(ctx context.Context, taskCurrent task.Task) {
-	log.Printf("start %v\n", taskCurrent)
-	done := make(chan int)
-	go taskCurrent.Run(ctx, done)
-	select {
-	case <-done:
-		log.Printf("%s finish\n", taskCurrent)
-	case <-ctx.Done():
-		log.Printf("%s cancel: %v\n", taskCurrent, ctx.Err())
+	log.Printf("Start %v\n", taskCurrent)
+	err := taskCurrent.Run(ctx)
+	if err != nil {
+		// mark task as Failed
+		log.Printf("Task %v error: %v", taskCurrent, err)
+	} else {
+		// mark task as Ok
+		// mark next task as Pending
+		log.Printf("Task %v done", taskCurrent)
 	}
-	log.Printf("stop %v\n", taskCurrent)
+	log.Printf("Stop %v\n", taskCurrent)
 }
 
 func runBatchTask(ctx context.Context, tasks []task.Task) {
@@ -44,6 +45,10 @@ func main() {
 	log.Println("start worker")
 	ctx := context.Background()
 	tasks := task.CreateTasks(taskSize)
+	// Здесь должен быть бесконечный цикл с чтением заданий из БД.
+	// Читаем таски со статусом Pending и меткой auto.
+	// При чтении помечаем выбранные задачи в БД статусом Processed.
+	// Если мы в базе нет задач на обработку, спим заданное время (1 минуту)
 	for i := 0; i < len(tasks); i = i + batchSize {
 		end := i + batchSize
 		if end > len(tasks) {
