@@ -11,6 +11,8 @@ import (
 
 const maxHandleTaskSecond = 10
 const timeoutHandler = 5 * time.Second
+const taskSize = 13
+const batchSize = 5
 
 type Task interface {
 	Run(ctx context.Context, done chan int)
@@ -85,11 +87,8 @@ func createTasks(count int) []Task {
 	return tasks
 }
 
-func main() {
-	log.Println("start worker")
-	ctx := context.Background()
+func runBatchTask(ctx context.Context, tasks []Task) {
 	var wg sync.WaitGroup
-	tasks := createTasks(10)
 	for _, task := range tasks {
 		wg.Add(1)
 		go func(task Task) {
@@ -100,4 +99,19 @@ func main() {
 		}(task)
 	}
 	wg.Wait()
+}
+
+func main() {
+	log.Println("start worker")
+	ctx := context.Background()
+	tasks := createTasks(taskSize)
+	for i := 0; i < len(tasks); i = i + batchSize {
+		end := i + batchSize
+		if end > len(tasks) {
+			end = len(tasks)
+		}
+		runBatchTask(ctx, tasks[i:end])
+		log.Println("-----------------------------")
+		time.Sleep(1 * time.Second)
+	}
 }
